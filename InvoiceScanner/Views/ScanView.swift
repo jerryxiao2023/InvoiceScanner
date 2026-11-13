@@ -213,6 +213,22 @@ struct InvoiceEditView: View {
                     .background(Color.black.ignoresSafeArea())
             }
         }
+        .onAppear {
+            // 关键：把解析结果填入金额输入框。此前这四个 @State 从未初始化，
+            // 且保存时 Double(空串)=nil 会反向覆盖已解析出的金额（金额永远丢失的根因）
+            if amountExclStr.isEmpty, let v = record.amountExcludingTax {
+                amountExclStr = String(format: "%.2f", v)
+            }
+            if taxRateStr.isEmpty, let v = record.taxRate {
+                taxRateStr = String(format: "%g", v)
+            }
+            if taxStr.isEmpty, let v = record.taxAmount {
+                taxStr = String(format: "%.2f", v)
+            }
+            if amountInclStr.isEmpty, let v = record.amountIncludingTax {
+                amountInclStr = String(format: "%.2f", v)
+            }
+        }
     }
 
     private func field(_ label: String, text: Binding<String>, placeholder: String = "") -> some View {
