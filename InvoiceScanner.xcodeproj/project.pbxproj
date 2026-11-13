@@ -1,0 +1,305 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000001 /* InvoiceScannerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000001 /* InvoiceScannerApp.swift */; };
+		AA000002 /* InvoiceRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000002 /* InvoiceRecord.swift */; };
+		AA000003 /* OCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000003 /* OCRService.swift */; };
+		AA000004 /* InvoiceParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000004 /* InvoiceParser.swift */; };
+		AA000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB000005 /* Assets.xcassets */; };
+		AA000006 /* RecordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000006 /* RecordStore.swift */; };
+		AA000007 /* ExcelExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000007 /* ExcelExporter.swift */; };
+		AA000008 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000008 /* HomeView.swift */; };
+		AA000009 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000009 /* ScanView.swift */; };
+		AA000010 /* RecordDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000010 /* RecordDetailView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AB000001 /* InvoiceScannerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceScannerApp.swift; sourceTree = "<group>"; };
+		AB000002 /* InvoiceRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceRecord.swift; sourceTree = "<group>"; };
+		AB000003 /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
+		AB000004 /* InvoiceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceParser.swift; sourceTree = "<group>"; };
+		AB000005 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AB000006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AB000007 /* ExcelExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExcelExporter.swift; sourceTree = "<group>"; };
+		AB000008 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		AB000009 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
+		AB000010 /* RecordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordDetailView.swift; sourceTree = "<group>"; };
+		AB000020 /* InvoiceScanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InvoiceScanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AD000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AB000030 /* InvoiceScanner */ = {
+			isa = PBXGroup;
+			children = (
+				AB000031 /* App */,
+				AB000033 /* Engine */,
+				AB000034 /* Views */,
+				AB000006 /* Info.plist */,
+				AB000005 /* Assets.xcassets */,
+				AB000035 /* Products */,
+			);
+			path = InvoiceScanner;
+			sourceTree = "<group>";
+		};
+		AB000031 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				AB000001 /* InvoiceScannerApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		AB000033 /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				AB000002 /* InvoiceRecord.swift */,
+				AB000003 /* OCRService.swift */,
+				AB000004 /* InvoiceParser.swift */,
+				AB000006 /* RecordStore.swift */,
+				AB000007 /* ExcelExporter.swift */,
+			);
+			path = Engine;
+			sourceTree = "<group>";
+		};
+		AB000034 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AB000008 /* HomeView.swift */,
+				AB000009 /* ScanView.swift */,
+				AB000010 /* RecordDetailView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		AB000035 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AB000020 /* InvoiceScanner.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AC000001 /* InvoiceScanner */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC000002 /* Build configuration list for PBXNativeTarget "InvoiceScanner" */;
+			buildPhases = (
+				AE000001 /* Sources */,
+				AD000001 /* Frameworks */,
+				AD000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = InvoiceScanner;
+			productName = InvoiceScanner;
+			productReference = AB000020 /* InvoiceScanner.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AF000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					AC000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = AF000002 /* Build configuration list for PBXProject "InvoiceScanner" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = zh-Hans;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = AB000030;
+			productRefGroup = AB000035 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AC000001 /* InvoiceScanner */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AD000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000005 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AE000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				AA000001 /* InvoiceScannerApp.swift in Sources */,
+				AA000002 /* InvoiceRecord.swift in Sources */,
+				AA000003 /* OCRService.swift in Sources */,
+				AA000004 /* InvoiceParser.swift in Sources */,
+				AA000006 /* RecordStore.swift in Sources */,
+				AA000007 /* ExcelExporter.swift in Sources */,
+				AA000008 /* HomeView.swift in Sources */,
+				AA000009 /* ScanView.swift in Sources */,
+				AA000010 /* RecordDetailView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AF000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Development";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AF000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Development";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AC000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = InvoiceScanner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jerry.invoicescanner;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AC000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = InvoiceScanner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jerry.invoicescanner;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AF000002 /* Build configuration list for PBXProject "InvoiceScanner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AF000003 /* Debug */,
+				AF000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AC000002 /* Build configuration list for PBXNativeTarget "InvoiceScanner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC000003 /* Debug */,
+				AC000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AF000001 /* Project object */;
+}
