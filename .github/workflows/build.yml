@@ -1,0 +1,39 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Build unsigned IPA
+        run: |
+          set -eo pipefail
+          xcodebuild -project InvoiceScanner.xcodeproj -target InvoiceScanner \
+            -configuration Release -sdk iphoneos \
+            SYMROOT="$PWD/build/sym" OBJROOT="$PWD/build/obj" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tail -40
+          APP="build/sym/Release-iphoneos/InvoiceScanner.app"
+          test -f "$APP/InvoiceScanner"
+          test -d "$APP"
+          rm -rf Payload InvoiceScanner.ipa
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry InvoiceScanner.ipa Payload
+          ls -lh InvoiceScanner.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: InvoiceScanner-unsigned-ipa
+          path: InvoiceScanner.ipa
+          retention-days: 30
