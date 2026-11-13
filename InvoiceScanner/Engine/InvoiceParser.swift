@@ -26,7 +26,7 @@ enum InvoiceParser {
         rec.invoiceDate = parseDate(norm: norm)
         rec.taxRatesText = parseRates(texts: texts)
 
-        let amounts = parseAmounts(norm: norm)
+        let amounts = parseAmounts(rows: rows, norm: norm, texts: texts, rateText: rec.taxRatesText)
         rec.amountIncludingTax = amounts.includingTax
         rec.amountExcludingTax = amounts.excludingTax
         rec.taxAmount = amounts.tax
@@ -36,9 +36,9 @@ enum InvoiceParser {
         rec.sellerName = names.seller
 
         // 项目名称（明细首行 *分类*名称，如 *经纪代理服务*退货费）存入备注列；
-        // 备注行本身的内容（订单号/行程等）一律忽略
+        // 备注行本身的内容（订单号/行程等）一律忽略。首位 * 允许缺失（OCR 常丢行首符号）
         for t in texts {
-            if let m = matches(t, "\\*([^*\\s]{1,20})\\*\\s*([^*\\s]{1,30})") {
+            if let m = matches(t, "\\*?([^*\\s]{2,20})\\*\\s*([^*\\s]{1,30})") {
                 let ns = t as NSString
                 rec.note = "*" + ns.substring(with: m.range(at: 1)) + "*" + ns.substring(with: m.range(at: 2))
                 break
@@ -81,10 +81,19 @@ enum InvoiceParser {
         return frac.count > 2
     }
 
+    /// 金额正则：分支1 = ¥（含 OCR 误读的 Y/y）前缀；分支2 = 无前缀的 N.NN 小数（≥2 位整数，防 20 位发票号误配）
+    private static let moneyPattern = "[¥￥Yy]\\s*([0-9OoIlil|,，.。]+)|(?:^|[^0-9.,])([1-9][0-9OoIlil|,，.。]{1,}\\.[0-9OoIlil|]{2})(?![0-9OoIlil|])"
+
     /// 从行文本中提取金额（含 ¥ 前缀优先），返回最大的数值（价税合计/合计行取最大值即为总金额）
     private static func money(in text: String, preferLargest: Bool = true) -> Double? {
-        let pattern = "[¥￥]\\s*([0-9OoIlil|,，.。]+)|(?:^|[^0-9.,])([1-9][0-9OoIlil|,，.。]{2,}\\.[0-9OoIlil|]{2})(?![0-9OoIlil|])"
-        guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let values = extractMoneyValues(in: text)
+        guard !values.isEmpty else { return nil }
+        return preferLargest ? values.max() : values.first
+    }
+
+    /// 提取行内全部候选金额（¥ 前缀 + N.NN 小数，单价等长小数已过滤）
+    private static func extractMoneyValues(in text: String) -> [Double] {
+        guard let re = try? NSRegularExpression(pattern: moneyPattern) else { return [] }
         let ns = text as NSString
         var values: [Double] = []
         for m in re.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
@@ -97,8 +106,7 @@ enum InvoiceParser {
                 if v != nil && v! > 0.004 { values.append(v!) }
             }
         }
-        guard !values.isEmpty else { return nil }
-        return preferLargest ? values.max() : values.first
+        return values
     }
 
     private static func matches(_ text: String, _ pattern: String) -> NSTextCheckingResult? {
@@ -183,9 +191,9 @@ enum InvoiceParser {
         var tax: Double?
     }
 
-    private static func parseAmounts(norm: [String]) -> Amounts {
+    private static func parseAmounts(rows: [[OCRLine]], norm: [String], texts: [String], rateText: String) -> Amounts {
         var a = Amounts()
-        // 价税合计（含税）：优先取「(小写)」锚点之后的数字（大写金额是汉字，money 本来也取不到）
+        // 1) 价税合计（含税）：优先取「(小写)」锚点之后的数字（大写金额是汉字，money 本来也取不到）
         for t in norm {
             if t.contains("价税合计") {
                 if let r = t.range(of: "小写") {
@@ -193,10 +201,14 @@ enum InvoiceParser {
                 } else {
                     a.includingTax = money(in: t)
                 }
+                // 对屏拍摄时 (小写)¥ 数字常被读花 → 兜底解析大写汉字金额
+                if a.includingTax == nil {
+                    a.includingTax = chineseAmount(in: t)
+                }
                 break
             }
         }
-        // 明细合计行：金额合计 / 税额合计，或老式「合计 ¥x ¥y」双金额
+        // 2) 明细合计行：金额合计 / 税额合计，或老式「合计 ¥x ¥y」双金额
         for t in norm {
             if t.contains("税额合计") || t.contains("税额") && t.contains("¥") {
                 if a.tax == nil { a.tax = money(in: t) }
@@ -208,7 +220,7 @@ enum InvoiceParser {
         if a.excludingTax == nil || a.tax == nil {
             for t in norm {
                 if t.contains("合计") && !t.contains("价税") && !t.contains("大写") {
-                    let nums = allMoney(in: t)
+                    let nums = extractMoneyValues(in: t)
                     if nums.count == 2 {
                         // 金额 > 税额（税率 ≤ 20%）
                         a.excludingTax = a.excludingTax ?? nums.max()
@@ -221,19 +233,130 @@ enum InvoiceParser {
                 }
             }
         }
+        // 3) 明细行按列提取（¥ 全部读花时，按表头「金额/税额」列的 x 几何位置对齐取数）
+        if a.excludingTax == nil || a.tax == nil {
+            let d = detailColumnAmounts(rows: rows, norm: norm)
+            if a.excludingTax == nil { a.excludingTax = d.excl }
+            if a.tax == nil { a.tax = d.tax }
+        }
+        // 4) 税率一致性配对（最后兜底：用 明细金额×(1+税率) 与候选金额互相验证；
+        //    必须用带空格的原始行文本——去空格会把相邻数字黏成串）
+        if a.includingTax == nil || a.excludingTax == nil {
+            let c = consistencyAmounts(texts: texts, rateText: rateText)
+            if a.includingTax == nil { a.includingTax = c.includingTax }
+            if a.excludingTax == nil { a.excludingTax = c.excludingTax }
+            if a.tax == nil { a.tax = c.tax }
+        }
         return a
     }
 
-    private static func allMoney(in text: String) -> [Double] {
-        guard let re = try? NSRegularExpression(pattern: "[¥￥]\\s*([0-9OoIlil|,，.。]+)") else { return [] }
-        let ns = text as NSString
-        var out: [Double] = []
-        for m in re.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
-            let raw = cleanDigits(ns.substring(with: m.range(at: 1))).replacingOccurrences(of: ",", with: "")
-            if isUnitPrice(raw) { continue }
-            if let v = Double(raw), v > 0.004 { out.append(v) }
+    /// 解析大写汉字金额（如「壹仟壹佰伍拾贰圆整」→ 1152.00）
+    private static func chineseAmount(in t: String) -> Double? {
+        var s = t
+        if let r = s.range(of: "大写") {
+            s = String(s[r.upperBound...]).replacingOccurrences(of: ")", with: "").replacingOccurrences(of: "）", with: "")
         }
-        return out
+        let digitMap: [Character: Int] = [
+            "零":0,"〇":0,"一":1,"壹":1,"二":2,"贰":2,"两":2,"三":3,"叁":3,
+            "四":4,"肆":4,"五":5,"伍":5,"六":6,"陆":6,"七":7,"柒":7,"八":8,"捌":8,"九":9,"玖":9
+        ]
+        let unitMap: [Character: Double] = ["十":10,"拾":10,"百":100,"佰":100,"千":1000,"仟":1000]
+        let bigMap: [Character: Double] = ["万":10_000,"萬":10_000,"亿":100_000_000,"億":100_000_000]
+        var result = 0.0, section = 0.0, frac = 0.0
+        var digit = -1, sawDigit = false, intDone = false
+        var intVal = 0.0
+        for ch in s {
+            if let d = digitMap[ch] { digit = d; sawDigit = true; continue }
+            if intDone {
+                if ch == "角" { frac += Double(max(digit, 0)) * 0.1; digit = -1 }
+                else if ch == "分" { frac += Double(max(digit, 0)) * 0.01; digit = -1 }
+                continue
+            }
+            if let u = unitMap[ch] {
+                section += (digit >= 0 ? Double(digit) : 1) * u   // 「拾贰」= 12
+                digit = -1
+            } else if let b = bigMap[ch] {
+                let val = section + (digit >= 0 ? Double(digit) : 0)
+                if b > 50_000 { result = (result + val) * b }     // 亿
+                else { result += val * b }                        // 万
+                section = 0; digit = -1
+            } else if ch == "圆" || ch == "元" {
+                // 整数部分在「圆/元」处落袋，避免「叁拾叁元肆角」的尾数 3 被角的 4 覆盖
+                intVal = result + section + (digit >= 0 ? Double(digit) : 0)
+                result = 0; section = 0; digit = -1
+                intDone = true
+            }
+        }
+        if !intDone {
+            intVal = result + section + (digit >= 0 ? Double(digit) : 0)
+        }
+        let total = intVal + frac
+        guard sawDigit, total > 0.004, total < 1e10 else { return nil }
+        return (total * 100).rounded() / 100
+    }
+
+    /// 明细行按列提取：找「项目名称…金额…税额」表头行，取表头「金额/税额」碎片中心 x，
+    /// 其下各行中落在对应列（±0.085）的金额累加（多明细行天然求和=合计）
+    private static func detailColumnAmounts(rows: [[OCRLine]], norm: [String]) -> (excl: Double?, tax: Double?) {
+        guard let hi = norm.firstIndex(where: { $0.contains("项目名称") || ($0.contains("单价") && $0.contains("金额") && $0.contains("税额")) }) else {
+            return (nil, nil)
+        }
+        var amtX: Double? = nil, taxX: Double? = nil
+        for f in rows[hi] {
+            let t = normalize(f.text)
+            if amtX == nil, t.contains("金额"), !t.contains("价税") { amtX = f.x + f.w / 2 }
+            if taxX == nil, t.contains("税额") { taxX = f.x + f.w / 2 }
+        }
+        guard amtX != nil || taxX != nil else { return (nil, nil) }
+        var excl = 0.0, tax = 0.0
+        var hasExcl = false, hasTax = false
+        for i in (hi + 1)..<rows.count {
+            let t = norm[i]
+            if t.contains("价税合计") || t.contains("合计") || t.contains("小写") { break }
+            for f in rows[i] {
+                guard let v = money(in: f.text, preferLargest: false) else { continue }
+                let cx = f.x + f.w / 2
+                if let ax = amtX, abs(cx - ax) <= 0.085 { excl += v; hasExcl = true }
+                if let tx = taxX, abs(cx - tx) <= 0.085 { tax += v; hasTax = true }
+            }
+        }
+        let round2 = { (v: Double) in (v * 100).rounded() / 100 }
+        return (hasExcl ? round2(excl) : nil, hasTax ? round2(tax) : nil)
+    }
+
+    /// 税率一致性配对：候选金额里找 v 与 v×(1+税率) 同时出现的组合
+    /// （如 1086.79 × 1.06 = 1152.00 → 含税 1152 / 不含税 1086.79 / 税额 65.21）
+    private static func consistencyAmounts(texts: [String], rateText: String) -> Amounts {
+        guard rateText.contains("%"), !rateText.contains("/"),
+              let r = Double(rateText.replacingOccurrences(of: "%", with: "")), r > 0, r <= 20 else {
+            return Amounts()
+        }
+        var vals: [Double] = []
+        for t in texts {
+            let n = normalize(t)
+            if n.contains("订单") || n.contains("校验") || n.contains("号码") || n.contains("大写") { continue }
+            vals.append(contentsOf: extractMoneyValues(in: t))
+        }
+        guard vals.count >= 2 else { return Amounts() }
+        let k = 1 + r / 100
+        var a = Amounts()
+        for v in vals.sorted(by: >) where v >= 1 {
+            let exclTarget = v / k
+            if let c = vals.first(where: { abs($0 - exclTarget) <= 0.02 && $0 > 0.99 && $0 < v }) {
+                a.includingTax = v
+                a.excludingTax = c
+                a.tax = ((v - c) * 100).rounded() / 100
+                return a
+            }
+            let inclTarget = v * k
+            if let c = vals.first(where: { abs($0 - inclTarget) <= 0.02 && $0 > 0.99 && $0 > v }) {
+                a.excludingTax = v
+                a.includingTax = c
+                a.tax = ((c - v) * 100).rounded() / 100
+                return a
+            }
+        }
+        return a
     }
 
     private struct Names {
@@ -247,15 +370,26 @@ enum InvoiceParser {
         /// 名称尾巴可能黏连「统一社会信用代码/地址/开户行」等标签，逐个截断
         func cleanName(_ raw: String) -> String {
             var v = raw
-            for cut in ["统一社会", "信用代码", "纳税人识别", "税号", "地址", "开户行", "开户", "银行账号", "账号", "电话"] {
+            for cut in ["统一社会", "信用代码", "纳税人识别", "税号", "地址", "开户行", "开户", "银行账号", "账号", "电话", "销售方", "购买方", "开票单位", "收票单位", "名称"] {
                 if let r = v.range(of: cut) { v = String(v[..<r.lowerBound]) }
+            }
+            // 竖排标签残片黏在名称尾部（如「…有限公司销售」）——真实公司名不会以「销售/购买」结尾
+            var changed = true
+            while changed {
+                changed = false
+                for tail in ["销售方信息", "购买方信息", "销售方", "购买方", "开票单位", "收票单位", "销售", "购买"] {
+                    if v.hasSuffix(tail), v.count - tail.count >= 2 {
+                        v = String(v.dropLast(tail.count))
+                        changed = true
+                    }
+                }
             }
             return v.trimmingCharacters(in: CharacterSet(charactersIn: ":：（）() ，,。"))
         }
 
-        /// 从归一化文本中提取第一个「名称:」之后的公司名
+        /// 从归一化文本中提取第一个「名称:」之后的公司名（到下一个「名称」为止）
         func nameValue(from t: String) -> String? {
-            guard let m = matches(t, "名称:?(.{2,})$") else { return nil }
+            guard let m = matches(t, "名称:?(.+?)(名称|$)") else { return nil }
             let ns = t as NSString
             let v = cleanName(ns.substring(with: m.range(at: 1)))
             return v.count >= 2 ? v : nil
@@ -279,6 +413,8 @@ enum InvoiceParser {
                     }
                 } else {
                     if t.contains("名称") { break }
+                    // 跨过对方区域标签（如黏在购买方名称后的「销售方信息」残片）即停
+                    if t.contains("销售方") || t.contains("购买方") || t.contains("开票单位") || t.contains("收票单位") { break }
                     parts.append(t)
                 }
             }
@@ -387,6 +523,13 @@ enum InvoiceParser {
         }
         if let excl = rec.amountExcludingTax, let incl = rec.amountIncludingTax, rec.taxAmount == nil {
             rec.taxAmount = ((incl - excl) * 100).rounded() / 100
+        }
+        // 无税率时的互相补全（两两相加/相减）
+        if let excl = rec.amountExcludingTax, let tax = rec.taxAmount, rec.amountIncludingTax == nil {
+            rec.amountIncludingTax = ((excl + tax) * 100).rounded() / 100
+        }
+        if let incl = rec.amountIncludingTax, let tax = rec.taxAmount, rec.amountExcludingTax == nil {
+            rec.amountExcludingTax = ((incl - tax) * 100).rounded() / 100
         }
     }
 }
