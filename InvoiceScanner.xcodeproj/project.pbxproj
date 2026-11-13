@@ -12,7 +12,7 @@
 		AA000003 /* OCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000003 /* OCRService.swift */; };
 		AA000004 /* InvoiceParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000004 /* InvoiceParser.swift */; };
 		AA000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB000005 /* Assets.xcassets */; };
-		AA000006 /* RecordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000006 /* RecordStore.swift */; };
+		AA000006 /* RecordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000011 /* RecordStore.swift */; };
 		AA000007 /* ExcelExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000007 /* ExcelExporter.swift */; };
 		AA000008 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000008 /* HomeView.swift */; };
 		AA000009 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000009 /* ScanView.swift */; };
@@ -26,6 +26,7 @@
 		AB000004 /* InvoiceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InvoiceParser.swift; sourceTree = "<group>"; };
 		AB000005 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AB000006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AB000011 /* RecordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordStore.swift; sourceTree = "<group>"; };
 		AB000007 /* ExcelExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExcelExporter.swift; sourceTree = "<group>"; };
 		AB000008 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		AB000009 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
@@ -71,7 +72,7 @@
 				AB000002 /* InvoiceRecord.swift */,
 				AB000003 /* OCRService.swift */,
 				AB000004 /* InvoiceParser.swift */,
-				AB000006 /* RecordStore.swift */,
+				AB000011 /* RecordStore.swift */,
 				AB000007 /* ExcelExporter.swift */,
 			);
 			path = Engine;
