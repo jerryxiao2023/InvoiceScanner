@@ -17,17 +17,17 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2</string>
+	<string>1.3</string>
 	<key>CFBundleVersion</key>
-	<string>3</string>
+	<string>4</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>使用相机拍摄发票以自动识别票面字段</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>从相册选择发票照片进行识别</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>保存识别结果截图到相册</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>从相册选择发票照片进行识别</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiresFullScreen</key>
