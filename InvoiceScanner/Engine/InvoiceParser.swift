@@ -35,6 +35,16 @@ enum InvoiceParser {
         rec.buyerName = names.buyer
         rec.sellerName = names.seller
 
+        // 项目名称（明细首行 *分类*名称，如 *经纪代理服务*退货费）存入备注列；
+        // 备注行本身的内容（订单号/行程等）一律忽略
+        for t in texts {
+            if let m = matches(t, "\\*([^*\\s]{1,20})\\*\\s*([^*\\s]{1,30})") {
+                let ns = t as NSString
+                rec.note = "*" + ns.substring(with: m.range(at: 1)) + "*" + ns.substring(with: m.range(at: 2))
+                break
+            }
+        }
+
         // 数值推导（仅有部分字段时补全，推导值标注在税额）
         derive(&rec)
         return rec
@@ -64,9 +74,16 @@ enum InvoiceParser {
         return String(s.map { spaced[$0] ?? $0 }).replacingOccurrences(of: " ", with: "")
     }
 
+    /// 单价等长小数（小数位 > 2，如 1086.79252830189）不是有效金额
+    private static func isUnitPrice(_ cleaned: String) -> Bool {
+        guard let dot = cleaned.firstIndex(of: ".") else { return false }
+        let frac = cleaned[cleaned.index(after: dot)...]
+        return frac.count > 2
+    }
+
     /// 从行文本中提取金额（含 ¥ 前缀优先），返回最大的数值（价税合计/合计行取最大值即为总金额）
     private static func money(in text: String, preferLargest: Bool = true) -> Double? {
-        let pattern = "[¥￥]\\s*([0-9OoIlil|,，.。]+)|(?:^|[^0-9.,])([1-9][0-9OoIlil|,，.。]{2,}\\.[0-9OoIlil|]{2})"
+        let pattern = "[¥￥]\\s*([0-9OoIlil|,，.。]+)|(?:^|[^0-9.,])([1-9][0-9OoIlil|,，.。]{2,}\\.[0-9OoIlil|]{2})(?![0-9OoIlil|])"
         guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
         let ns = text as NSString
         var values: [Double] = []
@@ -75,6 +92,7 @@ enum InvoiceParser {
                 let r = m.range(at: idx)
                 if r.location == NSNotFound { continue }
                 let raw = cleanDigits(ns.substring(with: r))
+                if isUnitPrice(raw) { continue }          // 长小数=单价，跳过
                 let v = Double(raw.replacingOccurrences(of: ",", with: ""))
                 if v != nil && v! > 0.004 { values.append(v!) }
             }
@@ -98,9 +116,9 @@ enum InvoiceParser {
                 return cleanDigits(ns.substring(with: m.range(at: 1))).replacingOccurrences(of: ",", with: "")
             }
         }
-        // 2) 兜底：独立 20 位（数电票）或 8 位号码；排除「校验码」行
+        // 2) 兜底：独立 20 位（数电票）或 8 位号码；排除「校验码」「备注/订单」行（订单号是干扰源）
         for (i, t) in norm.enumerated() {
-            if t.contains("校验") { continue }
+            if t.contains("校验") || t.contains("备注") || t.contains("订单") { continue }
             if let m = matches(t, "(^|[^0-9])([0-9]{20})([^0-9]|$)") {
                 let ns = t as NSString
                 let _ = i
@@ -108,7 +126,7 @@ enum InvoiceParser {
             }
         }
         for t in norm {
-            if t.contains("校验") { continue }
+            if t.contains("校验") || t.contains("备注") || t.contains("订单") { continue }
             if let m = matches(t, "(^|[^0-9])([0-9]{8})([^0-9]|$)") {
                 let ns = t as NSString
                 return ns.substring(with: m.range(at: 2))
@@ -167,10 +185,14 @@ enum InvoiceParser {
 
     private static func parseAmounts(norm: [String]) -> Amounts {
         var a = Amounts()
-        // 价税合计（含税）：取该行最大金额（大写行同时出现 ¥小写数字）
+        // 价税合计（含税）：优先取「(小写)」锚点之后的数字（大写金额是汉字，money 本来也取不到）
         for t in norm {
             if t.contains("价税合计") {
-                a.includingTax = money(in: t)
+                if let r = t.range(of: "小写") {
+                    a.includingTax = money(in: String(t[r.upperBound...])) ?? money(in: t)
+                } else {
+                    a.includingTax = money(in: t)
+                }
                 break
             }
         }
@@ -208,6 +230,7 @@ enum InvoiceParser {
         var out: [Double] = []
         for m in re.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
             let raw = cleanDigits(ns.substring(with: m.range(at: 1))).replacingOccurrences(of: ",", with: "")
+            if isUnitPrice(raw) { continue }
             if let v = Double(raw), v > 0.004 { out.append(v) }
         }
         return out
@@ -317,6 +340,18 @@ enum InvoiceParser {
         if n.seller.isEmpty, let (ri, fi) = sellerLoc {
             let ax = rows[ri][fi].x
             n.seller = nearestNameBelow(ri, minCenterX: ax) ?? ""
+        }
+
+        // 2.5) 几何兜底：同一行出现两个及以上「名称」碎片 → 最左=购买方，其后第一个=销售方
+        //      （竖排标签被 OCR 打散导致找不到「销售方」锚点时的保险）
+        if n.buyer.isEmpty || n.seller.isEmpty {
+            for row in rows {
+                let nameIdxs = row.enumerated().compactMap { normalize($0.element.text).contains("名称") ? $0.offset : nil }
+                guard nameIdxs.count >= 2 else { continue }
+                if n.buyer.isEmpty, let v = nameValueFromFragments(Array(row[nameIdxs[0]...])) { n.buyer = v }
+                if n.seller.isEmpty, let v = nameValueFromFragments(Array(row[nameIdxs[1]...])) { n.seller = v }
+                break
+            }
         }
 
         // 3) 终极兜底：全票恰有两个「名称」行 → 顺序即 购买方 → 销售方
