@@ -36,11 +36,15 @@ enum InvoiceParser {
         rec.sellerName = names.seller
 
         // 项目名称（明细首行 *分类*名称，如 *经纪代理服务*退货费）存入备注列；
-        // 备注行本身的内容（订单号/行程等）一律忽略。首位 * 允许缺失（OCR 常丢行首符号）
+        // 备注行本身的内容（订单号/行程等）一律忽略。首位 * 允许缺失（OCR 常丢行首符号），
+        // 但捕获结果不得含「名称」（否则印章噪字「xx*名称：xx公司」会误配）
         for t in texts {
             if let m = matches(t, "\\*?([^*\\s]{2,20})\\*\\s*([^*\\s]{1,30})") {
                 let ns = t as NSString
-                rec.note = "*" + ns.substring(with: m.range(at: 1)) + "*" + ns.substring(with: m.range(at: 2))
+                let g1 = ns.substring(with: m.range(at: 1))
+                let g2 = ns.substring(with: m.range(at: 2))
+                if g1.contains("名称") || g2.contains("名称") { continue }
+                rec.note = "*" + g1 + "*" + g2
                 break
             }
         }
@@ -219,7 +223,9 @@ enum InvoiceParser {
         }
         if a.excludingTax == nil || a.tax == nil {
             for t in norm {
-                if t.contains("合计") && !t.contains("价税") && !t.contains("大写") {
+                // 「合 计」行 OCR 丢字后可能只剩「计」（计¥x￥y）
+                if (t.contains("合计") || t.contains("计") && (t.contains("¥") || t.contains("￥")))
+                    && !t.contains("价税") && !t.contains("大写") {
                     let nums = extractMoneyValues(in: t)
                     if nums.count == 2 {
                         // 金额 > 税额（税率 ≤ 20%）
@@ -304,7 +310,8 @@ enum InvoiceParser {
         var amtX: Double? = nil, taxX: Double? = nil
         for f in rows[hi] {
             let t = normalize(f.text)
-            if amtX == nil, t.contains("金额"), !t.contains("价税") { amtX = f.x + f.w / 2 }
+            // 「金额」列头可能被读成「金川额」等 → 按「金+额同时出现且不含税/价」匹配
+            if amtX == nil, t.contains("金"), t.contains("额"), !t.contains("税"), !t.contains("价") { amtX = f.x + f.w / 2 }
             if taxX == nil, t.contains("税额") { taxX = f.x + f.w / 2 }
         }
         guard amtX != nil || taxX != nil else { return (nil, nil) }
@@ -313,6 +320,8 @@ enum InvoiceParser {
         for i in (hi + 1)..<rows.count {
             let t = norm[i]
             if t.contains("价税合计") || t.contains("合计") || t.contains("小写") { break }
+            // 「合 计」行可能丢字只剩「计」（如「计 ¥x ￥y」），带 ¥ 的「计」行即合计区，防止叠加进明细
+            if t.contains("计"), t.contains("¥") || t.contains("￥") { break }
             for f in rows[i] {
                 guard let v = money(in: f.text, preferLargest: false) else { continue }
                 let cx = f.x + f.w / 2
@@ -490,14 +499,27 @@ enum InvoiceParser {
             }
         }
 
-        // 3) 终极兜底：全票恰有两个「名称」行 → 顺序即 购买方 → 销售方
+        // 3) 终极兜底：收集全票所有「名称：X」值 → 顺序即 购买方 → 销售方
+        //    跳过明细表头行（「项目名称…」会解析出垃圾）；一行内多个名称逐段提取
+        func looksCompany(_ v: String) -> Bool {
+            ["公司", "厂", "店", "中心", "集团", "社", "所", "处", "馆", "医院", "学校", "酒店", "银行", "工作室", "经营部", "门市"].contains { v.contains($0) }
+        }
         if n.buyer.isEmpty || n.seller.isEmpty {
-            let nameRows = norm.compactMap { t -> String? in
-                t.contains("名称") ? nameValue(from: t) : nil
+            var nameRows: [String] = []
+            for t in norm {
+                if t.contains("项目名称") || t.contains("规格型号") || t.contains("征收率") { continue }   // 表头行
+                guard t.contains("名称") else { continue }
+                for seg in t.components(separatedBy: "名称").dropFirst() {
+                    let v = cleanName(seg)
+                    if v.count >= 2, looksCompany(v) || v.count <= 4, !nameRows.contains(v) {
+                        nameRows.append(v)
+                    }
+                }
             }
-            let uniq = nameRows.filter { $0 != n.buyer && $0 != n.seller }
-            if n.buyer.isEmpty, uniq.indices.contains(0) { n.buyer = uniq[0] }
-            if n.seller.isEmpty, uniq.indices.contains(1) { n.seller = uniq[1] }
+            for v in nameRows {
+                if n.buyer.isEmpty, v != n.seller { n.buyer = v; continue }
+                if n.seller.isEmpty, v != n.buyer { n.seller = v }
+            }
         }
         return n
     }
@@ -505,6 +527,11 @@ enum InvoiceParser {
     // MARK: - 数值推导
 
     private static func derive(_ rec: inout InvoiceRecord) {
+        // 三项齐全但互不自洽（OCR 噪声导致某列重复叠加等）→ 以 含税−不含税 重算税额（最强恒等式）
+        if let i = rec.amountIncludingTax, let e = rec.amountExcludingTax, let t = rec.taxAmount,
+           abs(i - e - t) > 0.019 {
+            rec.taxAmount = ((i - e) * 100).rounded() / 100
+        }
         // 多税率时不做推导（比例不确定）
         let rate = rec.taxRate
         if rec.taxRate == nil, rec.taxRatesText.contains("%"), !rec.taxRatesText.contains("/") {
