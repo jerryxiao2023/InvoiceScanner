@@ -5,7 +5,7 @@ import PhotosUI
 struct HomeView: View {
     @EnvironmentObject private var store: RecordStore
     @State private var showAdd = false
-    @State private var exportURL: URL?
+    @State private var exportItem: ExportItem?
 
     var body: some View {
         NavigationStack {
@@ -41,8 +41,8 @@ struct HomeView: View {
                 }
             }
             .sheet(isPresented: $showAdd) { AddInvoiceView() }
-            .sheet(item: $exportURL) { url in
-                ShareSheet(items: [url])
+            .sheet(item: $exportItem) { item in
+                ShareSheet(items: [item.url])
             }
         }
     }
@@ -116,8 +116,14 @@ struct HomeView: View {
 
     private func export() {
         guard let url = ExcelExporter.export(records: store.records) else { return }
-        exportURL = url
+        exportItem = ExportItem(url: url)
     }
+}
+
+/// 分享条目（URL 不能直接 retroactive conforms Identifiable）
+struct ExportItem: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 // MARK: - 行视图
@@ -173,8 +179,4 @@ struct ShareSheet: UIViewControllerRepresentable {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
-}
-
-extension URL: Identifiable {
-    public var id: String { absoluteString }
 }
