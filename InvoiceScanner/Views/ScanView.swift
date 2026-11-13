@@ -75,7 +75,7 @@ struct AddInvoiceView: View {
             .fullScreenCover(isPresented: $showCamera) {
                 CameraPicker { image in
                     showCamera = false
-                    if let image { process(image) }
+                    if let cg = image?.normalizedCGImage() { process(cg) }
                 }
                 .ignoresSafeArea()
             }
