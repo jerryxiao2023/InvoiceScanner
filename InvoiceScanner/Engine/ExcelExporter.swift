@@ -11,7 +11,7 @@ enum ExcelExporter {
         let out = fm.temporaryDirectory.appendingPathComponent("发票记录_\(Self.dateStamp()).xlsx")
 
         // 表头 + 数据
-        var header = ["序号", "发票号码", "开票日期", "开票单位（销售方）", "收票单位（购买方）",
+        let header = ["序号", "发票号码", "开票日期", "开票单位（销售方）", "收票单位（购买方）",
                       "不含税金额", "税率", "税额", "含税金额", "票种", "备注", "录入时间"]
         var cells: [[Cell]] = [header.map { Cell.text($0) }]
         for (i, r) in records.enumerated() {
