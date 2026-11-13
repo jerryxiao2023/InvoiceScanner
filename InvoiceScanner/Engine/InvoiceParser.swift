@@ -31,7 +31,7 @@ enum InvoiceParser {
         rec.amountExcludingTax = amounts.excludingTax
         rec.taxAmount = amounts.tax
 
-        let names = parseNames(norm: norm)
+        let names = parseNames(rows: rows, norm: norm)
         rec.buyerName = names.buyer
         rec.sellerName = names.seller
 
@@ -218,44 +218,105 @@ enum InvoiceParser {
         var seller = ""
     }
 
-    private static func parseNames(norm: [String]) -> Names {
+    private static func parseNames(rows: [[OCRLine]], norm: [String]) -> Names {
         var n = Names()
-        let buyerAnchor = norm.firstIndex { $0.contains("购买方") || $0.contains("收票单位") }
-        let sellerAnchor = norm.firstIndex { $0.contains("销售方") || $0.contains("开票单位") }
 
+        /// 名称尾巴可能黏连「统一社会信用代码/地址/开户行」等标签，逐个截断
+        func cleanName(_ raw: String) -> String {
+            var v = raw
+            for cut in ["统一社会", "信用代码", "纳税人识别", "税号", "地址", "开户行", "开户", "银行账号", "账号", "电话"] {
+                if let r = v.range(of: cut) { v = String(v[..<r.lowerBound]) }
+            }
+            return v.trimmingCharacters(in: CharacterSet(charactersIn: ":：（）() ，,。"))
+        }
+
+        /// 从归一化文本中提取第一个「名称:」之后的公司名
         func nameValue(from t: String) -> String? {
             guard let m = matches(t, "名称:?(.{2,})$") else { return nil }
             let ns = t as NSString
-            var v = ns.substring(with: m.range(at: 1))
-            // 名称后可能直接黏连「统一社会信用代码/地址/开户行」等标签
-            for cut in ["统一社会", "信用代码", "税号", "纳税人识别", "地址", "开户行", "开户", "银行账号", "账号"] {
-                if let r = v.range(of: cut) { v = String(v[..<r.lowerBound]) }
-            }
-            v = v.trimmingCharacters(in: CharacterSet(charactersIn: ":：（）() "))
+            let v = cleanName(ns.substring(with: m.range(at: 1)))
             return v.count >= 2 ? v : nil
         }
 
-        // 1) 锚点行内联名称
-        if let bi = buyerAnchor, let v = nameValue(from: norm[bi]) { n.buyer = v }
-        if let si = sellerAnchor, let v = nameValue(from: norm[si]) { n.seller = v }
+        /// 从一排碎片中提取第一个「名称」对应的公司名：
+        /// 取「名称」碎片自身的余文 + 后续碎片，直到碰见下一个含「名称」的碎片为止
+        /// （并排布局时一行里有两个名称，不能整行一起取）
+        func nameValueFromFragments(_ frags: [OCRLine]) -> String? {
+            var parts: [String] = []
+            var started = false
+            for f in frags {
+                let t = normalize(f.text)
+                if !started {
+                    if t.contains("名称") {
+                        started = true
+                        if let m = matches(t, "名称:?(.*)$") {
+                            let ns = t as NSString
+                            parts.append(ns.substring(with: m.range(at: 1)))
+                        }
+                    }
+                } else {
+                    if t.contains("名称") { break }
+                    parts.append(t)
+                }
+            }
+            guard started else { return nil }
+            let v = cleanName(parts.joined())
+            return v.count >= 2 ? v : nil
+        }
 
-        // 2) 锚点之后向下找最近的「名称」行
-        func nearestNameAfter(_ start: Int, until stop: Int?) -> String? {
-            guard start >= 0, start < norm.count else { return nil }
-            var i = start + 1
-            while i < norm.count {
-                if let stop = stop, i >= stop { break }
-                if norm[i].contains("价税合计") || norm[i].contains("合计") && i > start + 6 { break }
-                if let v = nameValue(from: norm[i]) { return v }
+        // 定位「销售方/开票单位」与「购买方/收票单位」标签所在的（行, 碎片）
+        var sellerLoc: (Int, Int)? = nil
+        var buyerLoc: (Int, Int)? = nil
+        for (ri, row) in rows.enumerated() {
+            for (fi, frag) in row.enumerated() {
+                let t = normalize(frag.text)
+                if sellerLoc == nil, t.contains("销售方") || t.contains("开票单位") { sellerLoc = (ri, fi) }
+                if buyerLoc == nil, t.contains("购买方") || t.contains("收票单位") || t.contains("购买单位") { buyerLoc = (ri, fi) }
+            }
+        }
+
+        // 1) 行内提取（关键修复）：数电票购买方(左)与销售方(右)并排、被 OCR 合并进同一行，
+        //    必须以「销售方」标签为切割点——右侧才是销售方名称，左侧才是购买方名称
+        if let (ri, _) = buyerLoc {
+            var t = normalize(OCRService.rowText(rows[ri]))
+            if let r = t.range(of: "销售方") { t = String(t[..<r.lowerBound]) }   // 只取销售方之前
+            if let r = t.range(of: "开票单位") { t = String(t[..<r.lowerBound]) }
+            if let r = t.range(of: "购买方") { t = String(t[r.upperBound...]) }   // 跳过标签本身
+            if let r = t.range(of: "收票单位") { t = String(t[r.upperBound...]) }
+            if let v = nameValue(from: t) { n.buyer = v }
+        }
+        if let (ri, _) = sellerLoc {
+            var t = normalize(OCRService.rowText(rows[ri]))
+            if let r = t.range(of: "销售方") { t = String(t[r.upperBound...]) }   // 只取销售方之后
+            else if let r = t.range(of: "开票单位") { t = String(t[r.upperBound...]) }
+            if let v = nameValue(from: t) { n.seller = v }
+        }
+
+        // 2) 几何兜底：名称在锚点行的下一行时，按 x 坐标过滤
+        //    购买方：向下找第一个名称行（购买方块在左，自然先出现）
+        //    销售方：只看 x 不小于「销售方标签碎片」左缘的碎片——并排布局时排除左侧购买方的名称
+        func nearestNameBelow(_ startRow: Int, minCenterX: Double?) -> String? {
+            guard startRow + 1 < rows.count else { return nil }
+            let anchorX = minCenterX
+            var i = startRow + 1
+            while i < rows.count {
+                let t = normalize(OCRService.rowText(rows[i]))
+                if t.contains("价税合计") || (t.contains("合计") && i > startRow + 6) { break }
+                let slice = rows[i].filter { frag in
+                    guard let ax = anchorX else { return true }
+                    return (frag.x + frag.w / 2) >= ax - 0.03
+                }
+                if !slice.isEmpty, let v = nameValueFromFragments(slice) { return v }
                 i += 1
             }
             return nil
         }
-        if n.buyer.isEmpty, let bi = buyerAnchor {
-            n.buyer = nearestNameAfter(bi, until: sellerAnchor) ?? ""
+        if n.buyer.isEmpty, let (ri, _) = buyerLoc {
+            n.buyer = nearestNameBelow(ri, minCenterX: nil) ?? ""
         }
-        if n.seller.isEmpty, let si = sellerAnchor {
-            n.seller = nearestNameAfter(si, until: nil) ?? ""
+        if n.seller.isEmpty, let (ri, fi) = sellerLoc {
+            let ax = rows[ri][fi].x
+            n.seller = nearestNameBelow(ri, minCenterX: ax) ?? ""
         }
 
         // 3) 终极兜底：全票恰有两个「名称」行 → 顺序即 购买方 → 销售方
